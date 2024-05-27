@@ -211,7 +211,7 @@ async def get_rules_command(message: types.Message):
 async def set_rules_command(message: types.Message):
     user_rules = db.get_rules(message.from_user.id)
     if user_rules == 2:
-        users = db.get_users()
+        users = db.get_all_users()
         if not users:
             await message.answer("Нет доступных пользователей.")
             return
