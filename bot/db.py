@@ -36,13 +36,13 @@ class Database:
                 CREATE TABLE IF NOT EXISTS `skills` (
                     `id` INTEGER PRIMARY KEY AUTOINCREMENT,
                     `course_name` TEXT NOT NULL,
-                    `course_id` TEXT NOT NULL,
+                    `course_id` INTEGER NOT NULL,
                     `skill` TEXT NOT NULL,
                     `link` TEXT,
                     `start_date` TEXT NOT NULL,
                     `end_date` TEXT NOT NULL,
                     FOREIGN KEY (`course_name`) REFERENCES `courses` (`course_name`),
-                    FOREIGN KEY (`course_id`) REFERENCES `courses` (`course_id`)
+                    FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`)
                 );
             """)
             self.cursor.execute("""
@@ -143,6 +143,14 @@ class Database:
             self.connection.commit()
 
     # Course methods
+    '''def add_course(self, course_name, owner_id, password, registration_deadline, google_sheet_url):
+        with self.connection:
+            self.cursor.execute("""
+                INSERT INTO `courses` (`course_name`, `owner_id`, `password`, `registration_deadline`, `google_sheet_url`, `parsing_time`)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (course_name, owner_id, password, registration_deadline, google_sheet_url, datetime.now().isoformat()))
+            self.connection.commit()'''
+
     def add_course(self, course_name, owner_id, password, registration_deadline, google_sheet_url):
         with self.connection:
             self.cursor.execute("""
@@ -150,14 +158,24 @@ class Database:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (course_name, owner_id, password, registration_deadline, google_sheet_url, datetime.now().isoformat()))
             self.connection.commit()
-
-    def add_skills(self, course_name, skills):
+            return self.cursor.lastrowid
+        
+    '''def add_skills(self, course_name, skills):
         with self.connection:
             for skill in skills:
                 self.cursor.execute("""
                     INSERT INTO `skills` (`course_name`, `skill`, `link`, `start_date`, `end_date`)
                     VALUES (?, ?, ?, ?, ?)
                 """, (course_name, skill[0], skill[1], skill[2], skill[3]))
+            self.connection.commit()'''
+    
+    def add_skills(self, course_id, course_name, skills):
+        with self.connection:
+            for skill in skills:
+                self.cursor.execute("""
+                    INSERT INTO `skills` (`course_name`, `course_id`, `skill`, `link`, `start_date`, `end_date`)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (course_name, course_id, skill[0], skill[1], skill[2], skill[3]))
             self.connection.commit()
 
     def get_courses(self):
@@ -384,4 +402,8 @@ class Database:
                 JOIN courses c ON e.course_id = c.id
                 WHERE e.user_id = ?
             """, (user_id,)).fetchall()
+        
+    def get_users(self):
+        with self.connection:
+            return self.cursor.execute("SELECT user_id, nickname FROM users").fetchall()
 
