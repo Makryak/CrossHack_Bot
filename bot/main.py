@@ -88,15 +88,15 @@ async def check_for_notifications():
                         db.update_notification_log(user_id, course_id, notification_type, now)
                     elif notification_type == "1_day":
                         await send_notification(user_id,
-                                                f"Напоминалка: Встреча будет уже завтра. Не забудь повторить материал, который мы прислали после прошлой встречи.")
+                                                f"Напоминалка: Встреча будет уже завтра. Не забудь повторить материал.")
                         db.update_notification_log(user_id, course_id, notification_type, now)
                     elif notification_type == "1_hour":
                         await send_notification(user_id,
-                                                f"Напоминалка: В {appointment['time']} у тебя пройдет встреча.")
+                                                f"Напоминалка: В {appointment['time']} у тебя встреча.")
                         db.update_notification_log(user_id, course_id, notification_type, now)
                     elif notification_type == "1_hour_after":
                         await send_notification(user_id,
-                                                f"Встреча подходит к концу {appointment['time']}. До встречи на следующей неделе.")
+                                                f"Встреча подходит к концу {appointment['time']}.")
                         db.update_notification_log(user_id, course_id, notification_type, now)
                         db.update_week_number(course_id, user_id)
                         await send_skills_notification(user_id, course_id)
@@ -211,14 +211,17 @@ async def get_rules_command(message: types.Message):
 async def set_rules_command(message: types.Message):
     user_rules = db.get_rules(message.from_user.id)
     if user_rules == 2:
-        users = db.get_all_users()
+        users = db.get_users()
         if not users:
             await message.answer("Нет доступных пользователей.")
             return
 
         keyboard = InlineKeyboardMarkup(row_width=1)
         for user in users[:10]:
-            keyboard.add(InlineKeyboardButton(user['nickname'], callback_data=f"setrules_user_{user['user_id']}"))
+            user_id = user['user_id']
+            nickname = user['nickname'] or "Без ника"
+            button_text = f"{user_id} - {nickname}"
+            keyboard.add(InlineKeyboardButton(button_text, callback_data=f"setrules_user_{user_id}"))
 
         await message.answer("Выберите пользователя для изменения правил:", reply_markup=keyboard)
         await SetRules.waiting_for_user_selection.set()
@@ -331,26 +334,12 @@ async def add_registration_deadline(message: types.Message, state: FSMContext):
     password = data['password']
 
     course_name = list(skills_data.keys())[current_course_index]
-    db.add_course(course_name, message.from_user.id, password, registration_deadline, google_sheet_url)
-    db.add_skills(course_name, skills_data[course_name])
+    course_id = db.add_course(course_name, message.from_user.id, password, registration_deadline, google_sheet_url)
+
+    db.add_skills(course_id, course_name, skills_data[course_name])
 
     await state.update_data(current_course_index=current_course_index + 1)
     await request_next_course_details(message, state)
-    google_sheet_url = message.text
-
-    data = await state.get_data()
-    course_name = data.get('course_name')
-    password = data.get('password')
-    registration_deadline = data.get('registration_deadline')
-
-    db.add_course(course_name, message.from_user.id, password, registration_deadline, google_sheet_url)
-
-    skills_data = parse_google_sheet(google_sheet_url, CREDENTIALS_FILE)
-    for sheet_name, skills in skills_data.items():
-        db.add_skills(sheet_name, skills)
-
-    await bot.send_message(message.from_user.id, "Все добавлено! Ура!")
-    await state.finish()
 
 
 # endregion
@@ -462,7 +451,6 @@ async def set_appointment_command(message: types.Message):
         await message.reply("У тебя нет прав для выполнения этой функции.")
 
 
-# Показ списка пользователей с инлайн-кнопками
 async def show_user_selection(user_id, users, start_index):
     markup = types.InlineKeyboardMarkup(row_width=2)
     for user in users[start_index:start_index + 10]:
@@ -477,7 +465,6 @@ async def show_user_selection(user_id, users, start_index):
     await bot.send_message(user_id, "Выбери пользователя:", reply_markup=markup)
 
 
-# Обработка выбора пользователя
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('user_'),
                            state=SetAppointment.waiting_for_user_selection)
 async def process_user_selection(callback_query: types.CallbackQuery, state: FSMContext):
@@ -487,7 +474,6 @@ async def process_user_selection(callback_query: types.CallbackQuery, state: FSM
     await SetAppointment.waiting_for_weekday.set()
 
 
-# Обработка кнопок "Next" и "Previous"
 @dp.callback_query_handler(lambda c: c.data and (c.data.startswith('next_') or c.data.startswith('prev_')),
                            state=SetAppointment.waiting_for_user_selection)
 async def process_pagination(callback_query: types.CallbackQuery, state: FSMContext):
@@ -496,7 +482,6 @@ async def process_pagination(callback_query: types.CallbackQuery, state: FSMCont
     await show_user_selection(callback_query.from_user.id, users, start_index)
 
 
-# Обработка ввода дня недели
 @dp.message_handler(state=SetAppointment.waiting_for_weekday)
 async def process_weekday(message: types.Message, state: FSMContext):
     weekday = message.text
@@ -505,7 +490,6 @@ async def process_weekday(message: types.Message, state: FSMContext):
     await SetAppointment.waiting_for_time.set()
 
 
-# Обработка ввода времени
 @dp.message_handler(state=SetAppointment.waiting_for_time)
 async def process_time(message: types.Message, state: FSMContext):
     time = message.text
