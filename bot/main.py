@@ -28,7 +28,7 @@ scheduler = AsyncIOScheduler(timezone=pytz.timezone("Europe/Moscow"))
 
 
 def schedule_notifications():
-    scheduler.add_job(check_for_notifications, trigger='interval', minutes=0.1)
+    scheduler.add_job(check_for_notifications, trigger='interval', minutes=0.5)
     scheduler.start()
     logging.info("Notifications scheduled")
 
